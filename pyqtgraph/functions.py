@@ -267,7 +267,7 @@ def mkColor(*args) -> QtGui.QColor:
      QColor          QColor instance; makes a copy.
     ================ ================================================
     """
-    err = 'Not sure how to make a color from "%s"' % str(args)
+    err = lambda: 'Not sure how to make a color from "%s"' % str(args)
     if len(args) == 1:
         if isinstance(args[0], str):
             c = args[0]
@@ -303,18 +303,18 @@ def mkColor(*args) -> QtGui.QColor:
             elif len(args[0]) == 2:
                 return intColor(*args[0])
             else:
-                raise TypeError(err)
+                raise TypeError(err())
         elif np.issubdtype(type(args[0]), np.integer):
             return intColor(args[0])
         else:
-            raise TypeError(err)
+            raise TypeError(err())
     elif len(args) == 3:
         r, g, b = args
         a = 255
     elif len(args) == 4:
         r, g, b, a = args
     else:
-        raise TypeError(err)
+        raise TypeError(err())
     args = [int(a) if np.isfinite(a) else 0 for a in (r, g, b, a)]
     return QtGui.QColor(*args)
 
@@ -2044,15 +2044,22 @@ def arrayToQPath(x, y, connect='all', finiteCheck=True):
     if hasattr(path, 'reserve'):    # Qt 5.13
         path.reserve(n)
 
-    if hasattr(path, 'reserve') and getConfigOption('enableExperimental'):
+    if getConfigOption('enableExperimental'):
         backstore = None
         arr = Qt.internals.get_qpainterpath_element_array(path, n)
     else:
-        backstore = QtCore.QByteArray()
-        backstore.resize(4 + n*20 + 8)      # contents uninitialized
-        backstore.replace(0, 4, struct.pack('>i', n))
-        # cStart, fillRule (Qt.FillRule.OddEvenFill)
-        backstore.replace(4+n*20, 8, struct.pack('>ii', 0, 0))
+        if Qt.internals.qbytearray_leaks():
+            backstore = bytearray(4 + n*20 + 8) # initialized to zero
+            struct.pack_into('>i', backstore, 0, n)
+            # cStart, fillRule (Qt.FillRule.OddEvenFill)
+            struct.pack_into('>ii', backstore, 4+n*20, 0, 0)
+        else:
+            backstore = QtCore.QByteArray()
+            backstore.resize(4 + n*20 + 8)      # contents uninitialized
+            backstore.replace(0, 4, struct.pack('>i', n))
+            # cStart, fillRule (Qt.FillRule.OddEvenFill)
+            backstore.replace(4+n*20, 8, struct.pack('>ii', 0, 0))
+
         arr = np.frombuffer(backstore, dtype=[('c', '>i4'), ('x', '>f8'), ('y', '>f8')],
             count=n, offset=4)
 
@@ -2091,6 +2098,10 @@ def arrayToQPath(x, y, connect='all', finiteCheck=True):
 
     if isinstance(backstore, QtCore.QByteArray):
         ds = QtCore.QDataStream(backstore)
+        ds >> path
+    elif isinstance(backstore, bytearray):
+        qba = QtCore.QByteArray(backstore)  # a copy is made here
+        ds = QtCore.QDataStream(qba)
         ds >> path
     return path
 
