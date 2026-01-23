@@ -1566,22 +1566,40 @@ class PlotDataItem(GraphicsObject):
                 y = y[: n * ds].reshape(n, ds).mean(axis=1)
                 if connect is not None:
                     connect = connect[: n * ds].reshape(n, ds).all(axis=1)
-            elif self.opts["downsampleMethod"] == "peak":
-                n = len(x) // ds
-                x1 = np.empty((n, 2))
-                # start of x-values; try to select a somewhat centered point
-                stx = ds // 2
-                x1[:] = x[stx : stx + n * ds : ds, np.newaxis]
-                x = x1.reshape(n * 2)
-                y1 = np.empty((n, 2))
-                y2 = y[: n * ds].reshape((n, ds))
-                y1[:, 0] = y2.max(axis=1)
-                y1[:, 1] = y2.min(axis=1)
-                y = y1.reshape(n * 2)
-                if connect is not None:
-                    c = np.ones((n * 2), dtype=bool)
-                    c[1::2] = connect[: n * ds].reshape(n, ds).all(axis=1)
-                    connect = c
+            elif self.opts['downsampleMethod'] == 'peak':
+                # Use case: y is the monotonically increasing axis (time/depth),
+                #           x is the signal/value (RPM, GR, etc.)
+                n = len(y) // ds
+                if n < 1:
+                    # Nothing to downsample safely
+                    pass
+                else:
+                    # Representative y per bin (try to be centered)
+                    y1 = np.empty((n, 2), dtype=y.dtype)
+                    sty = ds // 2
+                    y_center = y[sty:sty + n * ds:ds]
+                    y1[:, 0] = y_center
+                    y1[:, 1] = y_center
+                    y = y1.reshape(n * 2)
+
+                    # Peaks/valleys of x per bin
+                    x1 = np.empty((n, 2), dtype=x.dtype)
+                    x2 = x[:n * ds].reshape((n, ds))
+
+                    # If your data can contain NaNs, prefer nanmax/nanmin:
+                    # x1[:, 0] = np.nanmax(x2, axis=1)
+                    # x1[:, 1] = np.nanmin(x2, axis=1)
+                    x1[:, 0] = x2.max(axis=1)
+                    x1[:, 1] = x2.min(axis=1)
+
+                    x = x1.reshape(n * 2)
+
+                    if connect is not None:
+                        # Keep segment connectivity consistent: only keep "connected"
+                        # if all original samples in the bin were connected.
+                        c = np.ones((n * 2), dtype=bool)
+                        c[1::2] = connect[:n * ds].reshape(n, ds).all(axis=1)
+                        connect = c
 
         if self.opts["dynamicRangeLimit"] is not None and view_range is not None:
             data_range = self._datasetMapped.dataRect()
