@@ -8,12 +8,12 @@ import numpy as np
 from .. import Vector
 from .. import functions as fn
 from .. import getConfigOption
-from ..Qt import QtCore, QtGui, QtWidgets, QT_LIB
+from ..Qt import QtCore, QtGui, QtWidgets, QT_LIB, QtVersionInfo
 
-if QT_LIB in ["PyQt5", "PySide2"]:
-    QtOpenGL = QtGui
-else:
+if QtVersionInfo[0] >= 6:
     QtOpenGL = importlib.import_module(f"{QT_LIB}.QtOpenGL")
+else:
+    QtOpenGL = QtGui
 
 class GLViewMixin:
     def __init__(self, *args, rotationMethod='euler', **kwargs):
@@ -32,14 +32,6 @@ class GLViewMixin:
             raise ValueError("Rotation method should be either 'euler' or 'quaternion'")
         
         self.opts = {
-            'center': Vector(0,0,0),  ## will always appear at the center of the widget
-            'rotation' : QtGui.QQuaternion(1,0,0,0), ## camera rotation (quaternion:wxyz)
-            'distance': 10.0,         ## distance of camera from center
-            'fov':  60,               ## horizontal field of view in degrees
-            'elevation': 30,          ## camera's angle of elevation in degrees
-            'azimuth': 45,            ## camera's azimuthal angle in degrees 	
-                                      ## (rotation around z-axis 0 points along x-axis)	
-            'viewport': None,         ## no longer in use
             'rotationMethod': rotationMethod
         }
         self.reset()
@@ -69,10 +61,14 @@ class GLViewMixin:
         self.opts['center'] = Vector(0,0,0)  ## will always appear at the center of the widget
         self.opts['distance'] = 10.0         ## distance of camera from center
         self.opts['fov'] = 60                ## horizontal field of view in degrees
-        self.opts['elevation'] = 30          ## camera's angle of elevation in degrees
-        self.opts['azimuth'] = 45            ## camera's azimuthal angle in degrees 
+
+        if self.opts['rotationMethod'] == 'quaternion':
+            self.opts['rotation'] = QtGui.QQuaternion(1,0,0,0)  ## camera rotation (quaternion:wxyz)
+        else:
+            self.opts['elevation'] = 30      ## camera's angle of elevation in degrees
+            self.opts['azimuth'] = 45        ## camera's azimuthal angle in degrees
                                              ## (rotation around z-axis 0 points along x-axis)
-        self.opts['viewport'] = None         ## no longer in use
+
         self.setBackgroundColor(getConfigOption('background'))
 
     def addItem(self, item):
@@ -332,7 +328,13 @@ class GLViewMixin:
             self.opts['fov'] = kwds['fov']
 
     def cameraParams(self):
-        valid_keys = {'center', 'rotation', 'distance', 'fov', 'elevation', 'azimuth'}
+        valid_keys = ['center', 'distance', 'fov']
+
+        if self.opts['rotationMethod'] == 'quaternion':
+            valid_keys.append('rotation')
+        else:
+            valid_keys.extend(['elevation', 'azimuth'])
+
         return { k : self.opts[k] for k in valid_keys }
 
     def orbit(self, azim, elev):

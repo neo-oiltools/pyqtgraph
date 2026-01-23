@@ -4,13 +4,13 @@ from OpenGL import GL
 from OpenGL.GL import shaders
 import numpy as np
 
-from ...Qt import QtGui, QT_LIB
+from ...Qt import QtGui, QT_LIB, QtVersionInfo
 from ..GLGraphicsItem import GLGraphicsItem
 
-if QT_LIB in ["PyQt5", "PySide2"]:
-    QtOpenGL = QtGui
-else:
+if QtVersionInfo[0] >= 6:
     QtOpenGL = importlib.import_module(f"{QT_LIB}.QtOpenGL")
+else:
+    QtOpenGL = QtGui
 
 __all__ = ['GLImageItem']
 
@@ -112,6 +112,10 @@ class GLImageItem(GLGraphicsItem):
         compiled = [shaders.compileShader([glsl_version, v], k) for k, v in sources.items()]
         program = shaders.compileProgram(*compiled)
 
+        GL.glBindAttribLocation(program, 0, "a_position")
+        GL.glBindAttribLocation(program, 1, "a_texcoord")
+        GL.glLinkProgram(program)
+
         klass._shaderProgram = program
         return program
 
@@ -126,8 +130,7 @@ class GLImageItem(GLGraphicsItem):
         mat_mvp = np.array(mat_mvp.data(), dtype=np.float32)
 
         program = self.getShaderProgram()
-        loc_pos = GL.glGetAttribLocation(program, "a_position")
-        loc_tex = GL.glGetAttribLocation(program, "a_texcoord")
+        loc_pos, loc_tex = 0, 1
         self.m_vbo_position.bind()
         GL.glVertexAttribPointer(loc_pos, 2, GL.GL_FLOAT, False, 4*4, None)
         GL.glVertexAttribPointer(loc_tex, 2, GL.GL_FLOAT, False, 4*4, GL.GLvoidp(2*4))
