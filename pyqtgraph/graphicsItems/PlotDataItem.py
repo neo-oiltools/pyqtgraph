@@ -1574,25 +1574,35 @@ class PlotDataItem(GraphicsObject):
                     # Nothing to downsample safely
                     pass
                 else:
-                    # Representative y per bin (try to be centered)
-                    y1 = np.empty((n, 2), dtype=y.dtype)
-                    sty = ds // 2
-                    y_center = y[sty:sty + n * ds:ds]
-                    y1[:, 0] = y_center
-                    y1[:, 1] = y_center
-                    y = y1.reshape(n * 2)
-
-                    # Peaks/valleys of x per bin
-                    x1 = np.empty((n, 2), dtype=x.dtype)
                     x2 = x[:n * ds].reshape((n, ds))
+                    y2 = y[:n * ds].reshape((n, ds))
+                    rows = np.arange(n)
 
-                    # If your data can contain NaNs, prefer nanmax/nanmin:
-                    # x1[:, 0] = np.nanmax(x2, axis=1)
-                    # x1[:, 1] = np.nanmin(x2, axis=1)
-                    x1[:, 0] = x2.max(axis=1)
-                    x1[:, 1] = x2.min(axis=1)
+                    min_indices = np.argmin(x2, axis=1)
+                    max_indices = np.argmax(x2, axis=1)
+
+                    # For a constant bucket argmin and argmax point at the same
+                    # sample. Keep the bucket endpoints so its time/depth extent
+                    # remains represented.
+                    same_extreme = min_indices == max_indices
+                    if np.any(same_extreme):
+                        max_indices = max_indices.copy()
+                        max_indices[same_extreme] = ds - 1
+
+                    # Emit extrema in source order, with the y coordinate of the
+                    # original samples at which they occurred.
+                    first_indices = np.minimum(min_indices, max_indices)
+                    second_indices = np.maximum(min_indices, max_indices)
+
+                    x1 = np.empty((n, 2), dtype=x.dtype)
+                    y1 = np.empty((n, 2), dtype=y.dtype)
+                    x1[:, 0] = x2[rows, first_indices]
+                    x1[:, 1] = x2[rows, second_indices]
+                    y1[:, 0] = y2[rows, first_indices]
+                    y1[:, 1] = y2[rows, second_indices]
 
                     x = x1.reshape(n * 2)
+                    y = y1.reshape(n * 2)
 
                     if connect is not None:
                         # Keep segment connectivity consistent: only keep "connected"

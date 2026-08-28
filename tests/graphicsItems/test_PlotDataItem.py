@@ -238,3 +238,27 @@ def test_downsampling_with_connect():
         assert len(xs) == len(cs)
 
     w.close()
+
+
+def test_peak_downsampling_preserves_extrema_positions():
+    x = np.array([5.0, 6.0, 50.0, 4.0, 3.0, 5.0])
+    y = np.arange(1000.0, 1006.0)
+    pdi = pg.PlotDataItem(x=x, y=y)
+
+    pdi.setDownsampling(ds=6, method="peak")
+    x_display, y_display = pdi.getData()
+
+    np.testing.assert_array_equal(x_display, [50.0, 3.0])
+    np.testing.assert_array_equal(y_display, [1002.0, 1004.0])
+
+
+def test_peak_downsampling_preserves_constant_bucket_extent():
+    x = np.array([7.0, 7.0, 7.0, 7.0])
+    y = np.arange(4.0)
+    pdi = pg.PlotDataItem(x=x, y=y)
+
+    pdi.setDownsampling(ds=4, method="peak")
+    x_display, y_display = pdi.getData()
+
+    np.testing.assert_array_equal(x_display, [7.0, 7.0])
+    np.testing.assert_array_equal(y_display, [0.0, 3.0])
