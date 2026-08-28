@@ -262,3 +262,19 @@ def test_peak_downsampling_preserves_constant_bucket_extent():
 
     np.testing.assert_array_equal(x_display, [7.0, 7.0])
     np.testing.assert_array_equal(y_display, [0.0, 3.0])
+
+
+def test_peak_downsampling_preserves_nan_discontinuities():
+    x = np.array([1.0, 4.0, 2.0, np.nan, 3.0, 9.0, 5.0])
+    y = np.array([1.0, 2.0, 3.0, np.nan, 10.0, 11.0, 12.0])
+    pdi = pg.PlotDataItem(x=x, y=y, connect="finite")
+
+    pdi.setDownsampling(ds=3, method="peak")
+    x_display, y_display = pdi.getData()
+
+    assert np.isnan(x_display).sum() == 1
+    assert np.isnan(y_display).sum() == 1
+    assert 4.0 in x_display
+    assert 9.0 in x_display
+    assert 2.0 in y_display
+    assert 11.0 in y_display
