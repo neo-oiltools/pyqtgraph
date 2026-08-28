@@ -238,3 +238,43 @@ def test_downsampling_with_connect():
         assert len(xs) == len(cs)
 
     w.close()
+
+
+def test_peak_downsampling_preserves_extrema_positions():
+    x = np.array([5.0, 6.0, 50.0, 4.0, 3.0, 5.0])
+    y = np.arange(1000.0, 1006.0)
+    pdi = pg.PlotDataItem(x=x, y=y)
+
+    pdi.setDownsampling(ds=6, method="peak")
+    x_display, y_display = pdi.getData()
+
+    np.testing.assert_array_equal(x_display, [50.0, 3.0])
+    np.testing.assert_array_equal(y_display, [1002.0, 1004.0])
+
+
+def test_peak_downsampling_preserves_constant_bucket_extent():
+    x = np.array([7.0, 7.0, 7.0, 7.0])
+    y = np.arange(4.0)
+    pdi = pg.PlotDataItem(x=x, y=y)
+
+    pdi.setDownsampling(ds=4, method="peak")
+    x_display, y_display = pdi.getData()
+
+    np.testing.assert_array_equal(x_display, [7.0, 7.0])
+    np.testing.assert_array_equal(y_display, [0.0, 3.0])
+
+
+def test_peak_downsampling_preserves_nan_discontinuities():
+    x = np.array([1.0, 4.0, 2.0, np.nan, 3.0, 9.0, 5.0])
+    y = np.array([1.0, 2.0, 3.0, np.nan, 10.0, 11.0, 12.0])
+    pdi = pg.PlotDataItem(x=x, y=y, connect="finite")
+
+    pdi.setDownsampling(ds=3, method="peak")
+    x_display, y_display = pdi.getData()
+
+    assert np.isnan(x_display).sum() == 1
+    assert np.isnan(y_display).sum() == 1
+    assert 4.0 in x_display
+    assert 9.0 in x_display
+    assert 2.0 in y_display
+    assert 11.0 in y_display
